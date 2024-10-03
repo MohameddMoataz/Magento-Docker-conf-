@@ -1,0 +1,94 @@
+services:
+  nginx:
+    build:
+      context: ./nginx
+    container_name: nginx
+    ports:
+      - "${NGINX_PORT}:80"
+      - "${SSL_PORT}:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./ssl:/etc/ssl
+    depends_on:
+      - varnish
+    networks:
+      - internal_network
+
+  magento:
+    build:
+      context: ./magento
+    container_name: magento
+    environment:
+      - MAGENTO_DB_HOST=${MAGENTO_DB_HOST}
+      - MAGENTO_DB_USER=${MAGENTO_DB_USER}
+      - MAGENTO_DB_PASSWORD=${MAGENTO_DB_PASSWORD}
+      - MAGENTO_DB_NAME=${MAGENTO_DB_NAME}
+    volumes:
+      - ${MAGENTO_VOLUME}:/var/www/html
+    depends_on:
+      - mysql
+    networks:
+      - internal_network
+
+  mysql:
+    image: mysql:8.0
+    container_name: mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+    volumes:
+      - ${MYSQL_VOLUME}:/var/lib/mysql
+    networks:
+      - internal_network
+
+  varnish:
+    build:
+      context: ./varnish
+    container_name: varnish
+    ports:
+      - "8081:8081"
+    volumes:
+      - ./varnish/default.vcl:/etc/varnish/default.vcl
+    depends_on:
+      - magento
+    networks:
+      - internal_network
+
+  redis:
+    image: redis:alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    networks:
+      - internal_network
+
+  opensearch:
+    image: opensearchproject/opensearch:latest
+    container_name: opensearch
+    environment:
+      - OPENSEARCH_INITIAL_ADMIN_PASSWORD=${OPENSEARCH_PASS}
+      - discovery.type=single-node
+    ports:
+      - "9200:9200"
+    volumes:
+      - ${OPENSEARCH_VOLUME}:/usr/share/opensearch/data
+    networks:
+      - internal_network
+
+networks:
+  internal_network:
+    driver: bridge
+    internal: true
+
+volumes:
+  mysql-data:
+    external: true
+  opensearch-data:
+    external: true
+  magento-data:
+    external: true
+  ssl-certs:
+    external: true
+
